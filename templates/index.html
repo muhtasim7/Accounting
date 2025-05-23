@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Accountant</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">AI Accountant</h1>
+            <p class="text-gray-600">Your personal financial assistant</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Transaction Input -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-semibold mb-4">Add Transaction</h2>
+                <div class="space-y-4">
+                    <textarea id="transactionInput" 
+                              class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Type your transaction (e.g., 'I spent 45 dollars for food today on my date')"
+                              rows="3"></textarea>
+                    <button onclick="addTransaction()" 
+                            class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-200">
+                        Add Transaction
+                    </button>
+                </div>
+            </div>
+
+            <!-- Financial Summary -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-semibold mb-4">Financial Summary</h2>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="p-4 bg-green-100 rounded-lg">
+                            <h3 class="text-sm font-medium text-green-800">Total Income</h3>
+                            <p id="totalIncome" class="text-2xl font-bold text-green-600">$0.00</p>
+                        </div>
+                        <div class="p-4 bg-red-100 rounded-lg">
+                            <h3 class="text-sm font-medium text-red-800">Total Expenses</h3>
+                            <p id="totalExpenses" class="text-2xl font-bold text-red-600">$0.00</p>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-blue-100 rounded-lg">
+                        <h3 class="text-sm font-medium text-blue-800">Net Balance</h3>
+                        <p id="netBalance" class="text-2xl font-bold text-blue-600">$0.00</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div class="mt-8 bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-2xl font-semibold mb-4">Expense Categories</h2>
+            <div id="categoryBreakdown" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <!-- Categories will be populated here -->
+            </div>
+        </div>
+
+        <!-- Savings Goals -->
+        <div class="mt-8 bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-2xl font-semibold mb-4">Savings Goals</h2>
+            <div id="savingsGoals" class="space-y-4">
+                <!-- Goals will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(amount);
+        }
+
+        // Add transaction
+        async function addTransaction() {
+            const input = document.getElementById('transactionInput');
+            const text = input.value.trim();
+            
+            if (!text) return;
+
+            try {
+                const response = await fetch('/api/transaction', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text })
+                });
+
+                if (response.ok) {
+                    input.value = '';
+                    updateSummary();
+                } else {
+                    alert('Error adding transaction');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error adding transaction');
+            }
+        }
+
+        // Update goal
+        async function updateGoal(goalName, amount) {
+            try {
+                const response = await fetch('/api/update_goal', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ goal: goalName, amount })
+                });
+
+                if (response.ok) {
+                    updateSummary();
+                } else {
+                    alert('Error updating goal');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error updating goal');
+            }
+        }
+
+        // Update summary
+        async function updateSummary() {
+            try {
+                const response = await fetch('/api/summary');
+                const data = await response.json();
+
+                document.getElementById('totalIncome').textContent = formatCurrency(data.total_income);
+                document.getElementById('totalExpenses').textContent = formatCurrency(data.total_expenses);
+                document.getElementById('netBalance').textContent = formatCurrency(data.net_balance);
+
+                // Update category breakdown
+                const categoryBreakdown = document.getElementById('categoryBreakdown');
+                categoryBreakdown.innerHTML = '';
+                
+                for (const [category, amount] of Object.entries(data.category_expenses)) {
+                    const div = document.createElement('div');
+                    div.className = 'p-4 bg-gray-100 rounded-lg';
+                    div.innerHTML = `
+                        <h3 class="text-sm font-medium text-gray-800">${category}</h3>
+                        <p class="text-xl font-bold text-gray-600">${formatCurrency(amount)}</p>
+                    `;
+                    categoryBreakdown.appendChild(div);
+                }
+
+                // Update savings goals
+                const savingsGoals = document.getElementById('savingsGoals');
+                savingsGoals.innerHTML = '';
+                
+                for (const goal of data.savings_goals) {
+                    const progress = (goal.current_amount / goal.target_amount) * 100;
+                    const div = document.createElement('div');
+                    div.className = 'p-4 bg-gray-50 rounded-lg';
+                    div.innerHTML = `
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-lg font-medium text-gray-800">${goal.goal}</h3>
+                            <span class="text-sm text-gray-600">${goal.days_remaining} days remaining</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                            <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${progress}%"></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <p class="text-gray-600">Target: ${formatCurrency(goal.target_amount)}</p>
+                                <p class="text-gray-600">Current: ${formatCurrency(goal.current_amount)}</p>
+                                <p class="text-gray-600">Remaining: ${formatCurrency(goal.remaining_amount)}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-600">Daily needed: ${formatCurrency(goal.daily_savings_needed)}</p>
+                                <p class="text-gray-600">Biweekly needed: ${formatCurrency(goal.biweekly_savings_needed)}</p>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <input type="number" 
+                                   class="w-32 p-1 border rounded" 
+                                   placeholder="Amount"
+                                   onchange="updateGoal('${goal.goal}', this.value)">
+                            <button onclick="updateGoal('${goal.goal}', this.previousElementSibling.value)"
+                                    class="ml-2 bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                                Add Savings
+                            </button>
+                        </div>
+                    `;
+                    savingsGoals.appendChild(div);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Initial load
+        updateSummary();
+    </script>
+</body>
+</html> 
